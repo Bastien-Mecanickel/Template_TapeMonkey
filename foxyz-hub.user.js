@@ -2,11 +2,14 @@
 // @name         Foxyz - Hub (boite a outils)
 // @namespace    mecanickel
 // @version      1.0
+// @updateURL    https://raw.githubusercontent.com/Bastien-Mecanickel/Template_TapeMonkey/main/foxyz-hub.user.js
+// @downloadURL  https://raw.githubusercontent.com/Bastien-Mecanickel/Template_TapeMonkey/main/foxyz-hub.user.js
 // @match        https://temp-mecanickel.gpao-foxyz.fr/ERP/Interfaces/*
 // @match        https://*.gpao-foxyz.fr/ERP/Interfaces/*
 // @run-at       document-idle
 // @grant        none
 // ==/UserScript==
+
 
 /*
  * HUB FOXYZ - point d'entree unique pour tous les outils.

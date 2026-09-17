@@ -1,13 +1,15 @@
 // ==UserScript==
-// @name         Foxyz -> Dossier : Push commande
+// @name         Foxyz - Dossier Push Commandes
 // @namespace    mecanickel
+// @version      1.5
+// @updateURL   https://raw.githubusercontent.com/Bastien-Mecanickel/Template_TapeMonkey/main/foxyz-dossier-push-commande.user.js
+// @downloadURL https://raw.githubusercontent.com/Bastien-Mecanickel/Template_TapeMonkey/main/foxyz-dossier-push-commande.user.js
 // @match        https://mecanickel.gpao-foxyz.fr/ERP/Interfaces/*
 // @match        https://temp-mecanickel.gpao-foxyz.fr/ERP/Interfaces/*
 // @run-at       document-idle
 // @grant        none
-// @version      1.5
-// ==/UserScript==
 
+// ==/UserScript==
 /*
  * Tuyau Foxyz -> Excel (panier cumulatif).
  * "Envoyer au dossier" -> extrait la commande et l'ajoute au panier.
