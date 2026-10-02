@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Foxyz — Export CA par commercial
 // @namespace    mecanickel
-// @version      1.5
+// @version      1.6
 // @description  Extrait le chiffre d'affaires facturé par commercial sur un mois donné (factures, avoirs et acomptes) et génère un fichier Excel à 2 feuilles. LECTURE SEULE.
 // @author       Bastien BARBIER
 // @match        https://mecanickel.gpao-foxyz.fr/ERP/Interfaces/*
@@ -121,7 +121,22 @@
      */
     async function lireTableau(idTableau) {
         const base = location.origin + location.pathname.replace(/\/Interfaces\/.*$/, '');
-        const url = `${base}/Tableaux/_tableau_general.php?id_tableau_foxyz=${idTableau}&input_s0=`;
+
+        // Paramètres neutralisés explicitement :
+        //   etat_group_foxyz  = regroupement  (le plus dangereux, voir ci-dessous)
+        //   etat_somme_foxyz  = sommes
+        //   etat_champs_foxyz = tri
+        // Un regroupement actif fait ADDITIONNER par Foxyz toutes les colonnes
+        // numériques du groupe — y compris le n° de facture, l'id du commercial
+        // et les dates. Le total du CA devient alors faux sans aucun signal.
+        // Ces paramètres sont des paramètres de LECTURE : ils n'enregistrent
+        // rien et ne modifient pas la configuration de l'utilisateur.
+        const url = `${base}/Tableaux/_tableau_general.php` +
+                    `?id_tableau_foxyz=${idTableau}` +
+                    `&input_s0=` +
+                    `&etat_group_foxyz=` +
+                    `&etat_somme_foxyz=` +
+                    `&etat_champs_foxyz=`;
 
         const reponse = await fetch(url, {
             method: 'GET',
@@ -254,6 +269,37 @@
         if (AUTRES_SALARIES[id]) return AUTRES_SALARIES[id];
         if (!id) return 'Aucun commercial renseigné';
         return `Salarié inconnu (id ${id})`;
+    }
+
+    /**
+     * Détecte un regroupement actif et refuse de produire un chiffre faux.
+     *
+     * Quand Foxyz regroupe, il additionne toutes les colonnes numériques du
+     * groupe, dates comprises : deux factures de 2026 donnent une date en 2083,
+     * trois en 2140, etc. Une date aberrante est donc la signature fiable d'une
+     * agrégation, et elle se repère sans connaître le détail des données.
+     *
+     * Ce garde-fou double la neutralisation faite dans l'URL : si un jour Foxyz
+     * renomme ses paramètres, le script s'arrêtera au lieu de mentir.
+     */
+    function verifierAgregation(lignes, nomTableau) {
+        const anneeMax = new Date().getFullYear() + 1;
+        const suspecte = lignes.find(l => {
+            const d = moisDe(l.date);
+            return d && (d.annee > anneeMax || d.annee < 2000);
+        });
+
+        if (suspecte) {
+            throw new Error(
+                `Les données du tableau « ${nomTableau} » semblent regroupées :\n` +
+                `une date de ${moisDe(suspecte.date).annee} a été lue.\n\n` +
+                "Quand un regroupement est actif, Foxyz additionne toutes les colonnes " +
+                "chiffrées — montants, numéros de facture et dates — et le total du " +
+                "chiffre d'affaires devient faux.\n\n" +
+                "Dans Foxyz : ouvre le tableau, retire le regroupement, puis relance " +
+                "l'export.\n\nAucun fichier n'a été généré."
+            );
+        }
     }
 
     /** Le client est-il hors périmètre commercial ? */
@@ -680,11 +726,13 @@
             const docFactures = await lireTableau(TABLEAU_FACTURES);
             const f = repererColonnes(docFactures, CHAMPS_FACTURES, 'Lignes des factures');
             const lignesFactures = lireLignes(f.table, f.index, CHAMPS_FACTURES);
+            verifierAgregation(lignesFactures, 'Lignes des factures');
 
             message('Lecture des acomptes…');
             const docAcomptes = await lireTableau(TABLEAU_ACOMPTES);
             const a = repererColonnes(docAcomptes, CHAMPS_ACOMPTES, "Lignes des factures d'acompte");
             const lignesAcomptes = lireLignes(a.table, a.index, CHAMPS_ACOMPTES);
+            verifierAgregation(lignesAcomptes, "Lignes des factures d'acompte");
 
             if (lignesFactures.length === 0) {
                 throw new Error("Aucune ligne de facture n'a été lue. Le tableau est peut-être vide, ou sa structure a changé.");
