@@ -1,12 +1,12 @@
 // ==UserScript==
 // @name         Foxyz — Export CA par commercial
 // @namespace    mecanickel
-// @version      1.6
-// @description  Extrait le chiffre d'affaires facturé par commercial sur un mois donné (factures, avoirs et acomptes) et génère un fichier Excel à 2 feuilles. LECTURE SEULE.
+// @version      1.8
+// @description  Extrait le chiffre d'affaires facturé par commercial sur un mois donné (factures, avoirs et acomptes) et génère un fichier Excel mis en forme à 2 feuilles. LECTURE SEULE.
 // @author       Bastien BARBIER
 // @match        https://mecanickel.gpao-foxyz.fr/ERP/Interfaces/*
 // @match        https://temp-mecanickel.gpao-foxyz.fr/ERP/Interfaces/*
-// @require      https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js
+// @require      https://cdnjs.cloudflare.com/ajax/libs/exceljs/4.4.0/exceljs.min.js
 // @run-at       document-idle
 // @grant        none
 // ==/UserScript==
@@ -527,126 +527,265 @@
     //  GÉNÉRATION DU FICHIER EXCEL
     // =========================================================================
 
-    function genererExcel(resultat, annee, mois) {
-        const libelleMois = `${MOIS_FR[mois - 1]} ${annee}`;
-        const classeur = XLSX.utils.book_new();
+    /*
+     * Mise en forme demandée par la direction (12/10/2026) :
+     * en-têtes en gras, bordures, CA net surligné en jaune, montants en euros.
+     * ExcelJS est utilisé à la place de SheetJS : la version gratuite de ce
+     * dernier n'écrit aucun style (ni gras, ni fond, ni bordure).
+     */
 
-        // ---------- Feuille 1 : RÉCAP ------------------------------------------
-        const recap = [];
-        recap.push([`Chiffre d'affaires facturé — ${libelleMois}`]);
-        recap.push([`Extrait le ${new Date().toLocaleDateString('fr-FR')} — ${resultat.documentsDuMois} document(s) sur le mois`]);
-        recap.push([]);
-        recap.push(['Commercial', 'Factures finales (HT)', 'Acomptes (HT)', 'Avoirs (HT)', 'CA net (HT)', 'Nb documents']);
+    const MONNAIE = '#,##0.00 €';
+    const ORANGE  = 'FFCB4315';   // bandeaux d'en-tête, couleur de l'outil
+    const GRIS    = 'FFEDEDED';   // titres de section
+    const JAUNE   = 'FFFFFF00';   // CA net, surlignage demandé par la direction
+    const TRAIT   = { style: 'thin', color: { argb: 'FFBFBFBF' } };
+    const BORDURE = { top: TRAIT, left: TRAIT, bottom: TRAIT, right: TRAIT };
+
+    /** Ligne d'en-tête de tableau : fond orange, texte blanc, gras. */
+    function ligneEntete(feuille, valeurs) {
+        const ligne = feuille.addRow(valeurs);
+        ligne.eachCell(cellule => {
+            cellule.font = { bold: true, color: { argb: 'FFFFFFFF' }, size: 10 };
+            cellule.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: ORANGE } };
+            cellule.alignment = { vertical: 'middle', horizontal: 'center', wrapText: true };
+            cellule.border = BORDURE;
+        });
+        ligne.height = 28;
+        return ligne;
+    }
+
+    /** Titre de section : gras sur fond gris. */
+    function ligneSection(feuille, texte, nbColonnes) {
+        feuille.addRow([]);
+        const ligne = feuille.addRow([texte]);
+        ligne.getCell(1).font = { bold: true, size: 11 };
+        for (let i = 1; i <= nbColonnes; i++) {
+            ligne.getCell(i).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: GRIS } };
+        }
+        ligne.height = 20;
+        return ligne;
+    }
+
+    /** Applique bordures et format monétaire à une ligne de données. */
+    function ligneDonnees(feuille, valeurs, colonnesMonnaie) {
+        const ligne = feuille.addRow(valeurs);
+        ligne.eachCell(cellule => { cellule.border = BORDURE; });
+        for (const i of colonnesMonnaie) {
+            const cellule = ligne.getCell(i);
+            cellule.numFmt = MONNAIE;
+            cellule.alignment = { horizontal: 'right' };
+            if (typeof cellule.value === 'number' && cellule.value < 0) {
+                cellule.font = { color: { argb: 'FFC00000' } };   // négatif en rouge
+            }
+        }
+        return ligne;
+    }
+
+    async function genererExcel(resultat, annee, mois) {
+        const libelleMois = `${MOIS_FR[mois - 1]} ${annee}`;
+        const classeur = new ExcelJS.Workbook();
+        classeur.creator = 'Foxyz — Export CA par commercial';
+        classeur.created = new Date();
+
+        // =====================================================================
+        //  FEUILLE 1 — RÉCAP
+        // =====================================================================
+        const recap = classeur.addWorksheet('Récap', {
+            views: [{ showGridLines: false }]
+        });
+        recap.columns = [
+            { width: 22 }, { width: 20 }, { width: 16 }, { width: 42 },
+            { width: 22 }, { width: 22 }, { width: 16 }, { width: 46 }
+        ];
+
+        // --- Titre -----------------------------------------------------------
+        recap.mergeCells('A1:F1');
+        const titre = recap.getCell('A1');
+        titre.value = `Chiffre d'affaires facturé — ${libelleMois}`;
+        titre.font = { bold: true, size: 16, color: { argb: ORANGE } };
+        recap.getRow(1).height = 26;
+
+        recap.mergeCells('A2:F2');
+        const sousTitre = recap.getCell('A2');
+        sousTitre.value = `Extrait le ${new Date().toLocaleDateString('fr-FR')} — ` +
+                          `${resultat.documentsDuMois} document(s) sur le mois`;
+        sousTitre.font = { italic: true, size: 10, color: { argb: 'FF808080' } };
+
+        recap.addRow([]);
+
+        // --- Tableau principal -------------------------------------------------
+        // Lignes dont la colonne « CA net » recevra un encadré épais (demande direction).
+        const lignesCaNet = [];
+        lignesCaNet.push(ligneEntete(recap, ['Commercial', 'Factures finales (HT)',
+                                             'Acomptes (HT)', 'Avoirs (HT)',
+                                             'CA net (HT)', 'Nb documents']).number);
 
         let tFactures = 0, tAcomptes = 0, tAvoirs = 0;
         for (const bloc of Object.values(resultat.parCommercial)) {
-            recap.push([bloc.nom, bloc.caFactures, bloc.caAcomptes, bloc.avoirs, bloc.net, bloc.documents.length]);
+            const ligne = ligneDonnees(recap,
+                [bloc.nom, bloc.caFactures, bloc.caAcomptes, bloc.avoirs, bloc.net,
+                 bloc.documents.length], [2, 3, 4, 5]);
+            ligne.getCell(1).font = { bold: true };
+            // CA net surligné, comme demandé par la direction
+            const net = ligne.getCell(5);
+            net.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: JAUNE } };
+            net.font = { bold: true };
+            ligne.getCell(6).alignment = { horizontal: 'center' };
+            lignesCaNet.push(ligne.number);
             tFactures += bloc.caFactures;
             tAcomptes += bloc.caAcomptes;
             tAvoirs   += bloc.avoirs;
         }
-        recap.push(['TOTAL', arrondi(tFactures), arrondi(tAcomptes), arrondi(tAvoirs),
-                    arrondi(tFactures + tAcomptes + tAvoirs), '']);
 
-        recap.push([]);
-        recap.push(["Les acomptes sont comptés dans le mois de leur émission. Les factures finales sont"]);
-        recap.push(["diminuées des acomptes déjà émis sur la même commande, car elles portent le montant"]);
-        recap.push(["total de la commande, acompte non déduit. Le détail de ces déductions figure ci-dessous."]);
+        const total = ligneDonnees(recap,
+            ['TOTAL', arrondi(tFactures), arrondi(tAcomptes), arrondi(tAvoirs),
+             arrondi(tFactures + tAcomptes + tAvoirs), ''], [2, 3, 4, 5]);
+        total.eachCell(c => { c.font = { bold: true }; });
+        const netTotal = total.getCell(5);
+        netTotal.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: JAUNE } };
+        netTotal.font = { bold: true, size: 12 };
+        lignesCaNet.push(total.number);
 
-        // Bloc déductions
-        recap.push([]);
-        recap.push([]);
-        recap.push(['ACOMPTES DÉDUITS DES FACTURES FINALES']);
+        // Encadré épais autour de la colonne « CA net », de l'en-tête au TOTAL.
+        const EPAIS = { style: 'medium', color: { argb: 'FF000000' } };
+        lignesCaNet.forEach((numero, i) => {
+            recap.getRow(numero).getCell(5).border = {
+                top:    i === 0 ? EPAIS : TRAIT,
+                bottom: i === lignesCaNet.length - 1 ? EPAIS : TRAIT,
+                left:   EPAIS,
+                right:  EPAIS
+            };
+        });
+
+        // --- Note explicative ---------------------------------------------------
+        recap.addRow([]);
+        const note = recap.addRow([
+            "Les acomptes sont comptés dans le mois de leur émission. Les factures finales " +
+            "sont diminuées des acomptes déjà émis sur la même commande, car elles portent " +
+            "le montant total de la commande, acompte non déduit."
+        ]);
+        recap.mergeCells(`A${note.number}:F${note.number}`);
+        note.getCell(1).font = { italic: true, size: 9, color: { argb: 'FF808080' } };
+        note.getCell(1).alignment = { wrapText: true, vertical: 'top' };
+        note.height = 30;
+
+        // --- Acomptes déduits -----------------------------------------------------
+        ligneSection(recap, 'ACOMPTES DÉDUITS DES FACTURES FINALES', 8);
         if (resultat.deductions.length === 0) {
-            recap.push(['Aucune facture finale du mois ne portait d\'acompte.']);
+            recap.addRow(["Aucune facture finale du mois ne portait d'acompte."])
+                 .getCell(1).font = { italic: true, color: { argb: 'FF808080' } };
         } else {
-            recap.push(['N° Facture', 'N° Commande', 'Client', 'Commercial',
-                        'Montant facturé (HT)', 'Acomptes déjà comptés', 'Total déduit', 'Retenu au CA']);
+            ligneEntete(recap, ['N° Facture', 'N° Commande', 'Client', 'Commercial',
+                                'Montant facturé (HT)', 'Acomptes déjà comptés',
+                                'Total déduit', 'Retenu au CA']);
             for (const d of resultat.deductions) {
-                recap.push([d.numero, d.commande, d.client, d.commercialNom,
-                            arrondi(d.montantBrut), d.acomptes,
-                            arrondi(-d.totalAcomptes), arrondi(d.montantRetenu)]);
+                ligneDonnees(recap, [d.numero, d.commande, d.client, d.commercialNom,
+                                     arrondi(d.montantBrut), d.acomptes,
+                                     arrondi(-d.totalAcomptes), arrondi(d.montantRetenu)],
+                             [5, 7, 8]);
             }
         }
 
-        // Bloc avoirs
-        recap.push([]);
-        recap.push([]);
-        recap.push(['AVOIRS DU MOIS — déjà déduits du CA net ci-dessus']);
+        // --- Avoirs -----------------------------------------------------------------
+        ligneSection(recap, 'AVOIRS DU MOIS — déjà déduits du CA net ci-dessus', 8);
         if (resultat.avoirs.length === 0) {
-            recap.push(['Aucun avoir sur ce mois.']);
+            recap.addRow(['Aucun avoir sur ce mois.'])
+                 .getCell(1).font = { italic: true, color: { argb: 'FF808080' } };
         } else {
-            recap.push(['N° Facture', 'N° Commande', 'Date', 'Client', 'Commercial', 'Montant HT']);
+            ligneEntete(recap, ['N° Facture', 'N° Commande', 'Date', 'Client',
+                                'Commercial', 'Montant HT']);
             for (const a of resultat.avoirs) {
-                recap.push([a.numero, a.commande, a.date, a.client, a.commercialNom, a.totalHT]);
+                ligneDonnees(recap, [a.numero, a.commande, a.date, a.client,
+                                     a.commercialNom, arrondi(a.totalHT)], [6]);
             }
-            recap.push(['', '', '', '', 'Total avoirs', arrondi(tAvoirs)]);
+            const t = ligneDonnees(recap, ['', '', '', '', 'Total avoirs', arrondi(tAvoirs)], [6]);
+            t.getCell(5).font = { bold: true };
+            t.getCell(6).font = { bold: true, color: { argb: 'FFC00000' } };
         }
 
-        // Bloc anomalies
-        recap.push([]);
-        recap.push([]);
-        recap.push(['ANOMALIES — à vérifier, NON comptées dans le CA (sauf mention contraire)']);
+        // --- Anomalies ---------------------------------------------------------------
+        ligneSection(recap, 'ANOMALIES — à vérifier, NON comptées dans le CA', 8);
         if (resultat.anomalies.length === 0) {
-            recap.push(["Aucune anomalie. Tous les documents du mois sont rattachés à un chargé d'affaires."]);
+            recap.addRow(["Aucune anomalie. Tous les documents du mois sont rattachés à un chargé d'affaires."])
+                 .getCell(1).font = { italic: true, color: { argb: 'FF2E7D32' } };
         } else {
-            recap.push(['N°', 'N° Commande', 'Date', 'Client', 'Rattaché à', 'Nature', 'Montant HT', 'Motif']);
+            ligneEntete(recap, ['N°', 'N° Commande', 'Date', 'Client', 'Rattaché à',
+                                'Nature', 'Montant HT', 'Motif']);
             for (const a of resultat.anomalies) {
-                recap.push([a.numero, a.commande, a.date, a.client, a.commercialNom,
-                            a.nature, a.montant, a.motif]);
+                ligneDonnees(recap, [a.numero, a.commande, a.date, a.client, a.commercialNom,
+                                     a.nature, arrondi(a.montant), a.motif], [7]);
             }
         }
 
-        // Bloc clients hors périmètre
+        // --- Hors périmètre ------------------------------------------------------------
         if (resultat.exclus.length) {
-            recap.push([]);
-            recap.push([]);
-            recap.push(['HORS PÉRIMÈTRE COMMERCIAL — NON comptés dans le CA']);
-            recap.push(["Ces clients n'ont pas de chargé d'affaires (ex. revente de copeaux). Listés pour information."]);
-            recap.push(['N°', 'N° Commande', 'Date', 'Client', 'Nature', 'Montant HT']);
+            ligneSection(recap, 'HORS PÉRIMÈTRE COMMERCIAL — NON comptés dans le CA', 8);
+            recap.addRow(["Ces clients n'ont pas de chargé d'affaires (ex. revente de copeaux). Listés pour information."])
+                 .getCell(1).font = { italic: true, size: 9, color: { argb: 'FF808080' } };
+            ligneEntete(recap, ['N°', 'N° Commande', 'Date', 'Client', 'Nature', 'Montant HT']);
             let tExclus = 0;
             for (const e of resultat.exclus) {
-                recap.push([e.numero, e.commande, e.date, e.client, e.nature, arrondi(e.totalHT)]);
+                ligneDonnees(recap, [e.numero, e.commande, e.date, e.client, e.nature,
+                                     arrondi(e.totalHT)], [6]);
                 tExclus += e.totalHT;
             }
-            recap.push(['', '', '', '', 'Total hors périmètre', arrondi(tExclus)]);
+            const t = ligneDonnees(recap, ['', '', '', '', 'Total hors périmètre',
+                                           arrondi(tExclus)], [6]);
+            t.getCell(5).font = { bold: true };
+            t.getCell(6).font = { bold: true };
         }
 
-        const feuilleRecap = XLSX.utils.aoa_to_sheet(recap);
-        feuilleRecap['!cols'] = [{ wch: 20 }, { wch: 20 }, { wch: 16 }, { wch: 40 },
-                                 { wch: 22 }, { wch: 22 }, { wch: 16 }, { wch: 46 }];
-        XLSX.utils.book_append_sheet(classeur, feuilleRecap, 'Récap');
+        // =====================================================================
+        //  FEUILLE 2 — DÉTAIL
+        // =====================================================================
+        const detail = classeur.addWorksheet('Détail', {
+            views: [{ state: 'frozen', ySplit: 1 }]   // en-tête figé au défilement
+        });
+        detail.columns = [
+            { width: 10 }, { width: 14 }, { width: 13 }, { width: 44 }, { width: 20 },
+            { width: 18 }, { width: 20 }, { width: 18 }, { width: 18 }
+        ];
 
-        // ---------- Feuille 2 : DÉTAIL -------------------------------------------
-        const detail = [['N°', 'N° Commande', 'Date', 'Client', 'Commercial',
-                         'Nature', 'Montant facturé (HT)', 'Acomptes déduits', 'Retenu au CA (HT)']];
+        ligneEntete(detail, ['N°', 'N° Commande', 'Date', 'Client', 'Commercial',
+                             'Nature', 'Montant facturé (HT)', 'Acomptes déduits',
+                             'Retenu au CA (HT)']);
 
         const toutes = [];
         for (const [id, bloc] of Object.entries(resultat.parCommercial)) {
             for (const d of bloc.documents) {
-                toutes.push([
-                    d.numero, d.commande, d.date, d.client, COMMERCIAUX[id], d.nature,
-                    arrondi(d.totalHT),
-                    d.acomptesDeduits ? arrondi(-d.acomptesDeduits) : '',
-                    arrondi(d.montantRetenu)
-                ]);
+                toutes.push([d.numero, d.commande, d.date, d.client, COMMERCIAUX[id], d.nature,
+                             arrondi(d.totalHT),
+                             d.acomptesDeduits ? arrondi(-d.acomptesDeduits) : '',
+                             arrondi(d.montantRetenu)]);
             }
         }
         for (const a of resultat.anomalies) {
             toutes.push([a.numero, a.commande, a.date, a.client, a.commercialNom,
-                         `${a.nature} — ANOMALIE`, a.montant, '', '']);
+                         `${a.nature} — ANOMALIE`, arrondi(a.montant), '', '']);
+        }
+        toutes.sort((x, y) => (clefDate(x[2]) || 0) - (clefDate(y[2]) || 0));
+
+        for (const valeurs of toutes) {
+            const ligne = ligneDonnees(detail, valeurs, [7, 8, 9]);
+            // Les lignes qui ne sont pas de simples factures ressortent en gras.
+            if (!/^Facture$/.test(valeurs[5])) ligne.getCell(6).font = { bold: true };
         }
 
-        toutes.sort((x, y) => (clefDate(x[2]) || 0) - (clefDate(y[2]) || 0));
-        detail.push(...toutes);
+        // Filtres sur l'en-tête : le gérant peut isoler un commercial ou un client.
+        detail.autoFilter = { from: 'A1', to: `I${toutes.length + 1}` };
 
-        const feuilleDetail = XLSX.utils.aoa_to_sheet(detail);
-        feuilleDetail['!cols'] = [{ wch: 10 }, { wch: 14 }, { wch: 13 }, { wch: 42 }, { wch: 20 },
-                                  { wch: 20 }, { wch: 20 }, { wch: 18 }, { wch: 18 }];
-        XLSX.utils.book_append_sheet(classeur, feuilleDetail, 'Détail');
-
+        // =====================================================================
+        //  TÉLÉCHARGEMENT
+        // =====================================================================
         const nomFichier = `CA_commerciaux_${annee}_${String(mois).padStart(2, '0')}.xlsx`;
-        XLSX.writeFile(classeur, nomFichier);
+        const tampon = await classeur.xlsx.writeBuffer();
+        const lien = document.createElement('a');
+        lien.href = URL.createObjectURL(new Blob([tampon], {
+            type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+        }));
+        lien.download = nomFichier;
+        lien.click();
+        setTimeout(() => URL.revokeObjectURL(lien.href), 5000);
         return nomFichier;
     }
 
@@ -747,7 +886,7 @@
                 return;
             }
 
-            const nomFichier = genererExcel(resultat, annee, mois);
+            const nomFichier = await genererExcel(resultat, annee, mois);
 
             let resume = `Fichier généré : ${nomFichier}\n\n`;
             for (const bloc of Object.values(resultat.parCommercial)) {
