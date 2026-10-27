@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Foxyz - Dossier Push Commandes
 // @namespace    mecanickel
-// @version      1.5
+// @version      1.6
 // @updateURL   https://raw.githubusercontent.com/Bastien-Mecanickel/Template_TapeMonkey/main/foxyz-dossier-push-commande.user.js
 // @downloadURL https://raw.githubusercontent.com/Bastien-Mecanickel/Template_TapeMonkey/main/foxyz-dossier-push-commande.user.js
 // @match        https://mecanickel.gpao-foxyz.fr/ERP/Interfaces/*
@@ -44,12 +44,17 @@
  * v1.5 : une reference contenant "N/A" (non applicable) est traitee comme
  *   absente -> cote Excel la ligne ressort avec "PR N°____", quelle que soit
  *   la longueur du numero.
+ *
+ * v1.6 : Foxyz affiche desormais le client sous la forme
+ *   "ID : ALIAS (RAISON SOCIALE)" (alias = champ perso 4571). On ne garde que
+ *   l'ALIAS : on retire la DERNIERE parenthese en comptant les parentheses
+ *   depuis la fin (l'alias et la raison sociale peuvent en contenir).
  */
 
 (function () {
   'use strict';
 
-  console.log('[Foxyz-push-commande] script charge (v1.5)');
+  console.log('[Foxyz-push-commande] script charge (v1.6)');
 
   // =========================================================================
   // 1) MAPPING DES CHAMPS (la partie que tu maintiens)
@@ -95,6 +100,24 @@
   const $ = window.$;
   const lire = id => { const e = $('#' + id); return e.length ? (e.val() || '').trim() : ''; };
   const libelle = v => { if (!v) return ''; const i = v.indexOf(' : '); return i === -1 ? v.trim() : v.slice(i + 3).trim(); };
+
+  // Client = ALIAS seul. id_entreprise vaut "4 : DIOR (ST JEAN DE BRAYE) (PCD)"
+  // -> "DIOR (ST JEAN DE BRAYE)". On remonte depuis la fin en comptant les
+  // parentheses pour trouver l'ouvrante de la DERNIERE parenthese (= raison
+  // sociale), meme si elle contient elle-meme des parentheses.
+  function aliasClient(v) {
+    const s = libelle(v);
+    if (!s.endsWith(')')) return s;
+    let prof = 0;
+    for (let i = s.length - 1; i >= 0; i--) {
+      if (s[i] === ')') prof++;
+      else if (s[i] === '(' && --prof === 0) {
+        const alias = s.slice(0, i).trim();
+        return alias || s.slice(i + 1, -1).trim();   // pas d'alias -> raison sociale
+      }
+    }
+    return s;   // parentheses desequilibrees : on garde tout
+  }
 
   // Prefixes reconnus en tete de reference_article_N.
   //   ART. N :    -> reference AVANT la parenthese, designation DEDANS
@@ -180,7 +203,7 @@
     const data = {
       n_commande:      lire(CHAMPS.n_commande),
       date_ouverture:  formatDate(lire(CHAMPS.date_ouverture)),
-      client:          libelle(lire(CHAMPS.client)),
+      client:          aliasClient(lire(CHAMPS.client)),
       contact:         libelle(lire(CHAMPS.contact)),
       charge_affaires: libelle(lire(CHAMPS.charge_affaires)),
       devis:           '',
