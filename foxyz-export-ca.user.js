@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Foxyz — Export CA par commercial
 // @namespace    mecanickel
-// @version      1.8
+// @version      1.9
 // @description  Extrait le chiffre d'affaires facturé par commercial sur un mois donné (factures, avoirs et acomptes) et génère un fichier Excel mis en forme à 2 feuilles. LECTURE SEULE.
 // @author       Bastien BARBIER
 // @match        https://mecanickel.gpao-foxyz.fr/ERP/Interfaces/*
@@ -809,14 +809,17 @@
             display: none;
         `;
 
-        // Les 18 derniers mois, le mois précédent en tête.
+        // Mois et année choisis séparément. Présélection : le mois précédent,
+        // mais le mois en cours reste sélectionnable.
         const maintenant = new Date();
-        const options = [];
-        for (let i = 1; i <= 18; i++) {
-            const d = new Date(maintenant.getFullYear(), maintenant.getMonth() - i, 1);
-            const valeur = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
-            options.push(`<option value="${valeur}">${MOIS_FR[d.getMonth()]} ${d.getFullYear()}</option>`);
+        const defaut = new Date(maintenant.getFullYear(), maintenant.getMonth() - 1, 1);
+        const optionsMois = MOIS_FR.map((nom, i) =>
+            `<option value="${i + 1}"${i === defaut.getMonth() ? ' selected' : ''}>${nom}</option>`);
+        const optionsAnnees = [];
+        for (let a = maintenant.getFullYear(); a >= maintenant.getFullYear() - 5; a--) {
+            optionsAnnees.push(`<option value="${a}"${a === defaut.getFullYear() ? ' selected' : ''}>${a}</option>`);
         }
+        const styleSelect = 'padding:7px;border:1px solid #bbb;border-radius:4px;font-size:13px;';
 
         panneau.innerHTML = `
             <div style="background:#CB4315;color:#fff;padding:10px 12px;border-radius:5px 5px 0 0;
@@ -826,10 +829,14 @@
             </div>
             <div style="padding:14px;">
                 <label style="display:block;margin-bottom:6px;font-weight:bold;">Mois à extraire</label>
-                <select id="fzca_mois" style="width:100%;padding:7px;margin-bottom:12px;
-                        border:1px solid #bbb;border-radius:4px;font-size:13px;">
-                    ${options.join('')}
-                </select>
+                <div style="display:flex;gap:8px;margin-bottom:12px;">
+                    <select id="fzca_mois" style="flex:1;${styleSelect}">
+                        ${optionsMois.join('')}
+                    </select>
+                    <select id="fzca_annee" style="width:90px;${styleSelect}">
+                        ${optionsAnnees.join('')}
+                    </select>
+                </div>
                 <button id="fzca_lancer" style="width:100%;padding:10px;background:#CB4315;color:#fff;
                         border:none;border-radius:4px;font-size:14px;font-weight:bold;cursor:pointer;">
                     Générer le fichier Excel
@@ -855,7 +862,8 @@
 
     async function lancerExtraction() {
         const bouton = document.getElementById('fzca_lancer');
-        const [annee, mois] = document.getElementById('fzca_mois').value.split('-').map(Number);
+        const mois = Number(document.getElementById('fzca_mois').value);
+        const annee = Number(document.getElementById('fzca_annee').value);
 
         bouton.disabled = true;
         bouton.textContent = 'Lecture en cours…';
