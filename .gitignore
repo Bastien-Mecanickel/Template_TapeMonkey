@@ -1,0 +1,10 @@
+node_modules/
+.env
+.auth/
+.playwright-mcp/
+.claude/
+*.xlsx
+*.xlsm
+*.pdf
+*.PDF
+*.log
