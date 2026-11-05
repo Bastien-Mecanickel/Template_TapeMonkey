@@ -8,7 +8,7 @@ Ce dossier est un repo Git et la **seule source de vérité** des userscripts Fo
 - Faire un commit après chaque version validée par Bastien, message court : `<outil> vX.Y : <changement>`.
 - Ne jamais merger dans `main` ni pusher sans demande explicite de Bastien.
 - Ne jamais renommer ni déplacer un `.user.js` : son nom et son chemin font partie de l'`@updateURL` déjà installé dans les navigateurs. Les scripts restent à la racine.
-- Ne pas stocker ici de données (Excel, exports, PDF) : elles restent dans `C:\Users\Direction\Documents\TRAVAIL\CLAUDE\<outil>\`.
+- Ne pas stocker ici de données ni de docs d'outil (Excel, exports, PDF, CLAUDE.md d'outil) : ils restent dans le dossier de l'outil, voir ci-dessous.
 
 ## Scripts
 | Fichier | Outil |
@@ -20,18 +20,18 @@ Ce dossier est un repo Git et la **seule source de vérité** des userscripts Fo
 | `foxyz-pointages.user.js` | Extraction pointages vers JSON |
 | `foxyz-calculette.user.js` | Calculette temps & prix (100 % local) |
 
-## Documentation par outil (À LIRE avant de travailler sur un outil)
-Claude Code ne charge automatiquement que ce `CLAUDE.md`. Les fichiers de `docs/` ne sont lus que si tu les ouvres : **avant toute modification d'un outil, lis d'abord son fichier principal ci-dessous**, et les fichiers complémentaires seulement si la tâche les concerne (certains sont volumineux). Si la demande de Bastien ne nomme pas l'outil, demande-lui lequel.
+## Documentation par outil
+Le point d'entrée de chaque outil est **son dossier**, à côté de `_GitHub/` (`../../<dossier>/`). Chaque dossier a un `CLAUDE.md` qui renvoie vers le script de ce repo. Si tu es lancé depuis le repo, lis le `CLAUDE.md` de l'outil concerné avant de le modifier (et demande lequel si la demande ne le nomme pas).
 
-| Outil | À lire d'abord | Complémentaires (à la demande) |
-|---|---|---|
-| Création articles | `docs/creation-articles.md` | `docs/creation-articles-reprise.md`, `docs/creation-articles-chantier-plans-pdf.md`, `docs/creation-articles-diagnostic-plans.md` ; test : `tests/parseur_plans.test.js` |
-| Export CA | `docs/export-ca.md` | `docs/export-ca-diagnostic.md` (très long, ne lire que si besoin) |
-| Pointages | `docs/pointages.md` | `docs/pointages-mode-emploi.md` |
-| Dossier Push commandes | `docs/dossier-push-commande.md` | `docs/dossier-push-commande-snippets.md` |
-| Hub, Calculette | pas de doc dédiée : lire l'en-tête et le code du script | |
+| Outil | Dossier (depuis la racine du repo) |
+|---|---|
+| Création articles | `../../Outi ajout article en masse/` (CLAUDE.md, REPRISE.md, CHANTIER_PLANS_PDF.md, DIAGNOSTIC_PLANS.md) |
+| Export CA | `../../Outil Export CA Prime mensuelle/` (CLAUDE.md, DIAGNOSTIC.md très long, ne lire que si besoin) |
+| Pointages | `../../Export_heures_salariés_Foxyz/` (CLAUDE.md, MODE_EMPLOI.md) |
+| Dossier Push commandes | `../../Création Dossier Cmde/` (CLAUDE.md, README.md, diagnostics/) |
+| Hub, Calculette | `../../Hub pour outils Foxyz/` |
 
-Les données de chaque outil (Excel, exports, diagnostics bruts) sont dans `C:\Users\Direction\Documents\TRAVAIL\CLAUDE\<dossier de l'outil>\`, hors repo.
+Les données de chaque outil (Excel, exports, diagnostics bruts, docs) restent dans le dossier de l'outil, hors repo. Seuls les scripts et `tests/` sont versionnés ici.
 
 ## Rappels techniques Foxyz
 - Les champs texte ont `type="search"`, jamais `type="text"`. Cibler par `#id` exact ou par placeholder.
