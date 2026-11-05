@@ -696,7 +696,8 @@
         connecterHub({
             id: 'pointages',
             label: 'Pointages',
-            icone: 'RH',
+            icone: 'PT',
+            categorie: 'analyse',
             onOpen: function () {
                 afficher(panneau, extraire());
             }

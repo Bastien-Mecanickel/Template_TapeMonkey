@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Foxyz - Hub (boite a outils)
 // @namespace    mecanickel
-// @version      1.0
+// @version      1.1
 // @updateURL    https://raw.githubusercontent.com/Bastien-Mecanickel/Template_TapeMonkey/main/foxyz-hub.user.js
 // @downloadURL  https://raw.githubusercontent.com/Bastien-Mecanickel/Template_TapeMonkey/main/foxyz-hub.user.js
 // @match        https://temp-mecanickel.gpao-foxyz.fr/ERP/Interfaces/*
@@ -14,18 +14,15 @@
 /*
  * HUB FOXYZ - point d'entree unique pour tous les outils.
  *
+ * CHANGELOG
+ * 1.1 - Regroupement par categorie (saisie / analyse / utilitaire / divers).
+ *       Pastilles 2 caracteres, couleur par categorie.
+ *       Champ optionnel `categorie` dans enregistrer().
+ * 1.0 - Version initiale.
+ *
  * Ce script fait UNE seule chose : afficher la pastille "boite a outils"
  * en bas a droite et exposer window.__foxyz_hub__.enregistrer(outil) pour
  * que chaque script-outil vienne s'y accrocher.
- *
- * C'est desormais le SEUL endroit ou vit le code du hub. Les scripts-outils
- * ne contiennent plus qu'un petit connecteur (voir plus bas) : plus besoin
- * de modifier 20 copies identiques le jour ou on veut changer une couleur
- * ou une position.
- *
- * Par defaut, rien d'autre que cette pastille ne s'affiche sur la page.
- * Chaque outil reste cache tant qu'on ne l'a pas ouvert depuis ce menu, et
- * c'est a l'outil (pas au hub) de gerer sa propre fermeture complete.
  *
  * ---------------------------------------------------------------------
  * CONNECTEUR A COLLER EN FIN DE CHAQUE SCRIPT-OUTIL :
@@ -46,8 +43,9 @@
  *   connecterHub({
  *     id: 'mon_outil',
  *     label: 'Mon outil',
- *     icone: 'ABC',        // 3 lettres max, affichees dans le rond
- *     onOpen: function () { / * afficher l'UI de l'outil * / }
+ *     icone: 'MO',          // 2 caracteres max (tronque si plus)
+ *     categorie: 'saisie',  // 'saisie' | 'analyse' | 'utilitaire' | absent => 'divers'
+ *     onOpen: function () { /* afficher l'UI de l'outil */ }
  *   });
  * ---------------------------------------------------------------------
  */
@@ -55,9 +53,103 @@
 (function () {
   'use strict';
 
-  if (window.__foxyz_hub__) { return; } // deja pret (double injection improbable)
+  if (window.__foxyz_hub__) { return; }
 
-  var COULEUR = '#CB4315';
+  var COULEUR_DEFAUT = '#CB4315';
+
+  var CATEGORIES = [
+    { key: 'saisie',      label: 'Saisie',           couleur: '#CB4315' },
+    { key: 'analyse',     label: 'Analyse & export',  couleur: '#2E5E7E' },
+    { key: 'utilitaire',  label: 'Utilitaires',       couleur: '#6B7280' },
+    { key: 'divers',      label: 'Divers',            couleur: '#6B7280' }
+  ];
+
+  function categorieNormalisee(cat) {
+    if (cat === 'saisie' || cat === 'analyse' || cat === 'utilitaire') { return cat; }
+    return 'divers';
+  }
+
+  function couleurCategorie(cat) {
+    for (var i = 0; i < CATEGORIES.length; i++) {
+      if (CATEGORIES[i].key === cat) { return CATEGORIES[i].couleur; }
+    }
+    return '#6B7280';
+  }
+
+  function normaliserIcone(icone) {
+    var s = (icone || String.fromCharCode(8226));
+    if (s.length > 2) { s = s.slice(0, 2); }
+    return s;
+  }
+
+  function renderListe(liste, outils, refs) {
+    while (liste.firstChild) { liste.removeChild(liste.firstChild); }
+
+    var groupes = {};
+    for (var ci = 0; ci < CATEGORIES.length; ci++) {
+      groupes[CATEGORIES[ci].key] = [];
+    }
+
+    for (var id in outils) {
+      if (outils.hasOwnProperty(id)) {
+        var o = outils[id];
+        groupes[categorieNormalisee(o.categorie)].push(o);
+      }
+    }
+
+    for (var gi = 0; gi < CATEGORIES.length; gi++) {
+      groupes[CATEGORIES[gi].key].sort(function (a, b) {
+        return a.label.localeCompare(b.label);
+      });
+    }
+
+    var premiereSectionAffichee = true;
+
+    for (var si = 0; si < CATEGORIES.length; si++) {
+      var cat = CATEGORIES[si];
+      var items = groupes[cat.key];
+      if (!items.length) { continue; }
+
+      var titre = document.createElement('div');
+      titre.textContent = cat.label.toUpperCase();
+      var titreStyle = 'font-size:9px;font-weight:bold;color:#aaa;letter-spacing:0.5px;padding:6px 8px 2px;';
+      if (!premiereSectionAffichee) {
+        titreStyle += 'border-top:1px solid #eee;margin-top:4px;';
+      }
+      titre.style.cssText = titreStyle;
+      liste.appendChild(titre);
+      premiereSectionAffichee = false;
+
+      for (var ii = 0; ii < items.length; ii++) {
+        (function (outil) {
+          var couleur = couleurCategorie(categorieNormalisee(outil.categorie));
+
+          var item = document.createElement('div');
+          item.style.cssText = 'display:flex;align-items:center;gap:8px;padding:7px 8px;cursor:pointer;border-radius:5px;font-size:13px;color:#222;';
+          item.onmouseenter = function () { item.style.background = '#f2e6e0'; };
+          item.onmouseleave = function () { item.style.background = 'transparent'; };
+
+          var ic = document.createElement('span');
+          ic.textContent = normaliserIcone(outil.icone);
+          ic.style.cssText = 'display:inline-flex;align-items:center;justify-content:center;width:24px;height:24px;border-radius:50%;background:' + couleur + ';color:#fff;font-size:11px;font-weight:bold;flex-shrink:0;';
+
+          var lbl = document.createElement('span');
+          lbl.textContent = outil.label;
+
+          item.appendChild(ic);
+          item.appendChild(lbl);
+
+          item.onclick = function () {
+            refs.barre.style.display = 'none';
+            refs.pastille.style.display = 'flex';
+            outil.onOpen();
+          };
+
+          liste.appendChild(item);
+        })(items[ii]);
+      }
+    }
+  }
 
   function creerBarre() {
     var pastille = document.createElement('div');
@@ -69,11 +161,11 @@
       '<line x1="3" y1="13" x2="21" y2="13"></line>' +
       '<line x1="10" y1="13" x2="10" y2="16"></line>' +
       '<line x1="14" y1="13" x2="14" y2="16"></line>' +
-      '</svg>'; // boite a outils (SVG, plus net qu un emoji)
+      '</svg>';
     Object.assign(pastille.style, {
       position: 'fixed', bottom: '80px', right: '20px', zIndex: 999997,
       width: '46px', height: '46px', borderRadius: '50%',
-      background: COULEUR, color: '#fff', fontSize: '22px', fontWeight: 'bold',
+      background: COULEUR_DEFAUT, color: '#fff', fontSize: '22px', fontWeight: 'bold',
       display: 'flex', alignItems: 'center', justifyContent: 'center',
       cursor: 'pointer', boxShadow: '0 2px 8px rgba(0,0,0,.35)',
       fontFamily: 'sans-serif', opacity: '0.65', transition: 'opacity .15s'
@@ -85,7 +177,7 @@
     barre.id = 'foxyz_hub_barre';
     Object.assign(barre.style, {
       position: 'fixed', bottom: '140px', right: '20px', zIndex: 999997,
-      background: '#fff', border: '2px solid ' + COULEUR,
+      background: '#fff', border: '2px solid ' + COULEUR_DEFAUT,
       borderRadius: '8px', padding: '8px', display: 'none',
       fontFamily: 'sans-serif', boxShadow: '0 2px 12px rgba(0,0,0,.35)',
       minWidth: '180px'
@@ -93,9 +185,9 @@
 
     var entete = document.createElement('div');
     entete.style.cssText = 'display:flex;align-items:center;margin-bottom:6px;';
-    entete.innerHTML = '<span style="font-weight:bold;color:' + COULEUR + ';font-size:12px;flex:1;">Outils Foxyz</span>';
+    entete.innerHTML = '<span style="font-weight:bold;color:' + COULEUR_DEFAUT + ';font-size:12px;flex:1;">Outils Foxyz</span>';
     var reduire = document.createElement('span');
-    reduire.textContent = '\u2715'; // croix
+    reduire.textContent = '\u2715';
     reduire.title = 'Fermer';
     reduire.style.cssText = 'cursor:pointer;font-weight:bold;color:#888;padding:0 4px;';
     reduire.onclick = function () { barre.style.display = 'none'; pastille.style.display = 'flex'; };
@@ -120,37 +212,13 @@
       refs: refs,
       outils: {},
       enregistrer: function (outil) {
-        if (this.outils[outil.id]) { return; } // deja enregistre
+        if (this.outils[outil.id]) { return; }
         this.outils[outil.id] = outil;
-
-        var item = document.createElement('div');
-        item.style.cssText = 'display:flex;align-items:center;gap:8px;padding:7px 8px;cursor:pointer;border-radius:5px;font-size:13px;color:#222;';
-        item.onmouseenter = function () { item.style.background = '#f2e6e0'; };
-        item.onmouseleave = function () { item.style.background = 'transparent'; };
-
-        var ic = document.createElement('span');
-        ic.textContent = outil.icone || String.fromCharCode(8226);
-        ic.style.cssText = 'display:inline-flex;align-items:center;justify-content:center;width:24px;height:24px;border-radius:50%;background:' + COULEUR + ';color:#fff;font-size:11px;font-weight:bold;flex-shrink:0;';
-
-        var lbl = document.createElement('span');
-        lbl.textContent = outil.label;
-
-        item.appendChild(ic);
-        item.appendChild(lbl);
-
-        item.onclick = function () {
-          // On replie le menu du hub avant d'ouvrir l'outil, pour ne pas
-          // se retrouver avec le menu ET l'outil ouverts en meme temps.
-          refs.barre.style.display = 'none';
-          refs.pastille.style.display = 'flex';
-          outil.onOpen();
-        };
-
-        refs.liste.appendChild(item);
+        renderListe(refs.liste, this.outils, refs);
       }
     };
 
-    console.log('[Foxyz-hub] pret');
+    console.log('[Foxyz-hub] pret v1.1');
   }
 
   var t = setInterval(function () {

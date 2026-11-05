@@ -623,7 +623,7 @@
   }
 
   waitForReady().then(function () {
-    connecterHub({ id: 'calculette', label: 'Calculette temps & prix', icone: 'CALC', onOpen: ouvrirPanneau });
+    connecterHub({ id: 'calculette', label: 'Calculette temps & prix', icone: 'CT', categorie: 'utilitaire', onOpen: ouvrirPanneau });
     console.log('[Foxyz-calculette] v1.3 enregistre dans le hub');
   });
 

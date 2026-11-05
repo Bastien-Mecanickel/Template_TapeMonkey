@@ -965,6 +965,7 @@
         id: 'export_ca',
         label: 'CA par commercial',
         icone: 'CA',
+        categorie: 'analyse',
         onOpen: ouvrirPanneau
     });
 

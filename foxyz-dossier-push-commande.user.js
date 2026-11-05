@@ -503,7 +503,8 @@
       connecterHub({
         id: 'push_commande',
         label: 'Push commande',
-        icone: 'CMD',
+        icone: 'PC',
+        categorie: 'saisie',
         onOpen: function () {
           afficherWidget();
           basculerMenu();

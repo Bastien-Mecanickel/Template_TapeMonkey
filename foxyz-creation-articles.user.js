@@ -887,7 +887,7 @@
   }
 
   waitForReady().then(function () {
-    connecterHub({ id: 'creation_articles', label: 'Creation articles', icone: 'ART', onOpen: ouvrirPanneau });
+    connecterHub({ id: 'creation_articles', label: 'Creation articles', icone: 'AR', categorie: 'saisie', onOpen: ouvrirPanneau });
     console.log('[Foxyz-articles] enregistre dans le hub');
   });
 })();
