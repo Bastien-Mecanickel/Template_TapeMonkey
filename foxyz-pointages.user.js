@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Foxyz - Extraction pointages
 // @namespace    mecanickel
-// @version      0.8
+// @version      0.9
 // @description  Extrait le tableau "Activite du personnel" vers un JSON verifie
 // @updateURL    https://raw.githubusercontent.com/Bastien-Mecanickel/Template_TapeMonkey/main/foxyz-pointages.user.js
 // @downloadURL  https://raw.githubusercontent.com/Bastien-Mecanickel/Template_TapeMonkey/main/foxyz-pointages.user.js

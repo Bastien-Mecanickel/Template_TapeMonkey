@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Foxyz — Export CA par commercial
 // @namespace    mecanickel
-// @version      1.9
+// @version      2.0
 // @description  Extrait le chiffre d'affaires facturé par commercial sur un mois donné (factures, avoirs et acomptes) et génère un fichier Excel mis en forme à 2 feuilles. LECTURE SEULE.
 // @author       Bastien BARBIER
 // @match        https://mecanickel.gpao-foxyz.fr/ERP/Interfaces/*

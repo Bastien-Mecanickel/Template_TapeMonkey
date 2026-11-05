@@ -1,6 +1,6 @@
 // ==UserScript==
 // @name         Foxyz - Création articles en masse
-// @version      1.9
+// @version      2.0
 // @updateURL    https://raw.githubusercontent.com/Bastien-Mecanickel/Template_TapeMonkey/main/foxyz-creation-articles.user.js
 // @downloadURL  https://raw.githubusercontent.com/Bastien-Mecanickel/Template_TapeMonkey/main/foxyz-creation-articles.user.js
 // @match        https://temp-mecanickel.gpao-foxyz.fr/ERP/Interfaces/*

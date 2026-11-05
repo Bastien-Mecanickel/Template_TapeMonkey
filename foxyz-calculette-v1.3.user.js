@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Foxyz - Calculette temps & prix
 // @namespace    mecanickel
-// @version      1.3
+// @version      1.4
 // @description  Convertisseur heures-minutes-secondes vers centiemes, simulateur de prix par taux horaire, calculateur surmoulage (moules x empreintes)
 // @match        https://temp-mecanickel.gpao-foxyz.fr/ERP/Interfaces/*
 // @match        https://mecanickel.gpao-foxyz.fr/ERP/Interfaces/*

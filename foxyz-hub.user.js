@@ -45,7 +45,7 @@
  *     label: 'Mon outil',
  *     icone: 'MO',          // 2 caracteres max (tronque si plus)
  *     categorie: 'saisie',  // 'saisie' | 'analyse' | 'utilitaire' | absent => 'divers'
- *     onOpen: function () { /* afficher l'UI de l'outil */ }
+ *     onOpen: function () { / * afficher l'UI de l'outil * / }
  *   });
  * ---------------------------------------------------------------------
  */
