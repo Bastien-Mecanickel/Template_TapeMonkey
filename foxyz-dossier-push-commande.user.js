@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Foxyz - Dossier Push Commandes
 // @namespace    mecanickel
-// @version      1.7
+// @version      1.8
 // @updateURL   https://raw.githubusercontent.com/Bastien-Mecanickel/Template_TapeMonkey/main/foxyz-dossier-push-commande.user.js
 // @downloadURL https://raw.githubusercontent.com/Bastien-Mecanickel/Template_TapeMonkey/main/foxyz-dossier-push-commande.user.js
 // @match        https://mecanickel.gpao-foxyz.fr/ERP/Interfaces/*
@@ -49,12 +49,17 @@
  *   "ID : ALIAS (RAISON SOCIALE)" (alias = champ perso 4571). On ne garde que
  *   l'ALIAS : on retire la DERNIERE parenthese en comptant les parentheses
  *   depuis la fin (l'alias et la raison sociale peuvent en contenir).
+ *
+ * v1.8 : nouveau format "AF. N : REF (DESIGNATION)" = article FOURNISSEUR
+ *   passe directement en commande (sans indus). Meme disposition que ART.,
+ *   mais le numero d'article est garde a cote de la ref :
+ *   "AF. 725 : G-128-201 (RESSORT ...)" -> ref "G-128-201 (AF. 725)".
  */
 
 (function () {
   'use strict';
 
-  console.log('[Foxyz-push-commande] script charge (v1.6)');
+  console.log('[Foxyz-push-commande] script charge (v1.8)');
 
   // =========================================================================
   // 1) MAPPING DES CHAMPS (la partie que tu maintiens)
@@ -122,7 +127,9 @@
   // Prefixes reconnus en tete de reference_article_N.
   //   ART. N :    -> reference AVANT la parenthese, designation DEDANS
   //   REP. N-NN : -> designation AVANT la parenthese, reference DEDANS  (inverse !)
+  //   AF. N :     -> comme ART. (article fournisseur), ref suivie de "(AF. N)"
   const PREFIXE_ART = /^ART\.\s*\d+\s*:\s*/i;
+  const PREFIXE_AF  = /^(AF\.\s*\d+)\s*:\s*/i;
   const PREFIXE_REP = /^REP\.\s*[\d-]+\s*:\s*/i;
 
   // Garde-fou : une reference article "valable" contient au minimum
@@ -161,6 +168,25 @@
         return { ref: ref, designation: dedans };
       }
       return { ref: '', designation: reste };   // pas de parenthese -> tout en designation
+    }
+
+    // Format AF. : "AF. N : REF (DESIGNATION)" (article fournisseur)
+    // Meme decoupe que ART. ; on ajoute le n d'article apres la ref :
+    // "AF. 725 : G-128-201 (RESSORT ...)" -> ref "G-128-201 (AF. 725)".
+    // Ref non valable -> ref vide (comme ART.) -> "PR N°____" cote Excel.
+    const af = brut.match(PREFIXE_AF);
+    if (af) {
+      const numAF = af[1].replace(/\s+/g, ' ').toUpperCase();   // "AF. 725"
+      const reste = brut.slice(af[0].length).trim();
+      const i = reste.indexOf('(');
+      const j = reste.lastIndexOf(')');
+      if (i !== -1 && j > i) {
+        const avant  = reste.slice(0, i).trim();
+        const dedans = reste.slice(i + 1, j).trim();
+        const ref = estRefValable(avant) ? avant + ' (' + numAF + ')' : '';
+        return { ref: ref, designation: dedans };
+      }
+      return { ref: '', designation: reste };
     }
 
     // Format REP. : "REP. N-NN : DESIGNATION (REF)"   (inverse de ART.)
